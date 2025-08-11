@@ -1,4 +1,4 @@
-ocal Players = game:GetService("Players")
+local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local MarketplaceService = game:GetService("MarketplaceService")
 
